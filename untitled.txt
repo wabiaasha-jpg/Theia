@@ -1,0 +1,82 @@
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import aiohttp
+import asyncio
+import nest_asyncio
+
+# Telegram bot token
+TOKEN = "8416158381:AAEVLM_PJhN_rDKYW_Gu83DIKbJz8QHivfI"
+OPENROUTER_API_KEY = "sk-or-v1-c42ac5a96d9eda2809aaebebf714e124ca59f"
+
+# Google Sheet links
+TODAY_SHEET_LINK = "https://docs.google.com/document/d/1ho7BfPid7WlF"
+LAST_MONTH_SHEET_LINK = "https://docs.google.com/document/d/152PnTAa"
+
+# /start command
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 Welcome to Theia AI Helper!\n\n"
+        "Commands:\n"
+        "/today - Get today's current affairs\n"
+        "/last - Get last month's current affairs\n"
+        "Or just ask anything!"
+    )
+
+# /today command
+async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if TODAY_SHEET_LINK:
+        await update.message.reply_text(f"📰 Today's Current Affairs:\n{TODAY_SHEET_LINK}")
+    else:
+        await update.message.reply_text("❌ Today's link not added yet.")
+
+# /last command
+async def last(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if LAST_MONTH_SHEET_LINK:
+        await update.message.reply_text(f"📆 Last Month's Affairs:\n{LAST_MONTH_SHEET_LINK}")
+    else:
+        await update.message.reply_text("❌ Last month's link not added yet.")
+
+# AI reply handler
+async def ai_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_message = update.message.text
+    reply = await ask_openrouter(user_message)
+    await update.message.reply_text(reply)
+
+# OpenRouter API Call
+async def ask_openrouter(prompt):
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://t.me/worldbrkr_ai_bot",
+        "X-Title": "WorldBrkrUPSCBot"
+    }
+    payload = {
+        "model": "openai/gpt-3.5-turbo",
+        "messages": [{"role": "user", "content": prompt}]
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as resp:
+                response_json = await resp.json()
+                return response_json['choices'][0]['message']['content']
+    except Exception as e:
+        return f"❌ AI Error: {e}"
+
+# Main application runner
+async def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("today", today))
+    app.add_handler(CommandHandler("last", last))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), ai_reply))
+
+    print("✅ Bot is running...")
+    await app.run_polling()
+
+# Run script
+if __name__ == "__main__":
+    nest_asyncio.apply()
+    asyncio.run(main())
